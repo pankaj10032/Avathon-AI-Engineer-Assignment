@@ -1,0 +1,14 @@
+.git
+.github
+.codex
+.agents
+node_modules
+frontend/node_modules
+backend/__pycache__
+backend/.pytest_cache
+tests/__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.log
+.env

@@ -1,0 +1,14 @@
+[
+  { "id": "courier-001", "name": "Aarav Mehta", "vehicle_type": "motorcycle", "location": { "lat": 19.1197, "lng": 72.8468 }, "speed_kmh": 42, "active_samples_count": 1, "shift_start": "07:00:00", "shift_end": "15:00:00" },
+  { "id": "courier-002", "name": "Sara Khan", "vehicle_type": "van", "location": { "lat": 19.0760, "lng": 72.8777 }, "speed_kmh": 32, "active_samples_count": 2, "shift_start": "06:30:00", "shift_end": "18:30:00" },
+  { "id": "courier-003", "name": "Rohit Nair", "vehicle_type": "motorcycle", "location": { "lat": 19.1400, "lng": 72.8300 }, "speed_kmh": 40, "active_samples_count": 0, "shift_start": "08:00:00", "shift_end": "16:00:00" },
+  { "id": "courier-004", "name": "Priya Shah", "vehicle_type": "van", "location": { "lat": 19.0176, "lng": 72.8562 }, "speed_kmh": 28, "active_samples_count": 4, "shift_start": "07:00:00", "shift_end": "19:00:00" },
+  { "id": "courier-005", "name": "Imran Siddiqui", "vehicle_type": "motorcycle", "location": { "lat": 19.0896, "lng": 72.8656 }, "speed_kmh": 45, "active_samples_count": 2, "shift_start": "09:00:00", "shift_end": "17:00:00" },
+  { "id": "courier-006", "name": "Neha Rao", "vehicle_type": "van", "location": { "lat": 19.1136, "lng": 72.8697 }, "speed_kmh": 30, "active_samples_count": 3, "shift_start": "06:00:00", "shift_end": "14:00:00" },
+  { "id": "courier-007", "name": "Karan Joshi", "vehicle_type": "motorcycle", "location": { "lat": 19.0522, "lng": 72.8266 }, "speed_kmh": 44, "active_samples_count": 1, "shift_start": "10:00:00", "shift_end": "18:00:00" },
+  { "id": "courier-008", "name": "Maya Iyer", "vehicle_type": "van", "location": { "lat": 19.2140, "lng": 72.8412 }, "speed_kmh": 29, "active_samples_count": 5, "shift_start": "05:30:00", "shift_end": "17:30:00" },
+  { "id": "courier-009", "name": "Arjun Patel", "vehicle_type": "motorcycle", "location": { "lat": 19.0330, "lng": 72.8420 }, "speed_kmh": 41, "active_samples_count": 0, "shift_start": "07:30:00", "shift_end": "15:30:00" },
+  { "id": "courier-010", "name": "Zoya Fernandes", "vehicle_type": "van", "location": { "lat": 19.0980, "lng": 72.8390 }, "speed_kmh": 31, "active_samples_count": 6, "shift_start": "08:00:00", "shift_end": "20:00:00" },
+  { "id": "courier-011", "name": "Dev Malik", "vehicle_type": "motorcycle", "location": { "lat": 19.1663, "lng": 72.8522 }, "speed_kmh": 46, "active_samples_count": 3, "shift_start": "06:45:00", "shift_end": "14:45:00" },
+  { "id": "courier-012", "name": "Fatima Ali", "vehicle_type": "van", "location": { "lat": 19.0618, "lng": 72.8960 }, "speed_kmh": 27, "active_samples_count": 1, "shift_start": "09:00:00", "shift_end": "21:00:00" }
+]
