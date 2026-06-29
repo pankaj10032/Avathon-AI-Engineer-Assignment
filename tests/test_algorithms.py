@@ -49,11 +49,11 @@ def test_sa_improves_greedy(courier_fleet, sample_requests, current_time):
 def test_hybrid_uses_greedy_for_critical(monkeypatch, courier_fleet, sample_requests, current_time):
     captured = {}
 
-    def fake_greedy(couriers, requests, current):
+    def fake_greedy(couriers, requests, current, config=None):
         captured["request_ids"] = [request.id for request in requests]
         return [], [], {"runtime_ms": 1.0, "total_cost_score": 0.0, "total_assigned": 0, "total_unassigned": 0}
 
-    def fake_hungarian(couriers, requests, current):
+    def fake_hungarian(couriers, requests, current, config=None):
         return [], [], {"runtime_ms": 1.0, "total_cost_score": 0.0, "total_assigned": 0, "total_unassigned": 0}
 
     monkeypatch.setattr("app.algorithms.hybrid.allocate_greedy", fake_greedy)

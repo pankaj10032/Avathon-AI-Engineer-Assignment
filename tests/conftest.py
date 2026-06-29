@@ -12,8 +12,8 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.models.common import AvailabilitySlot, Coordinate, RequestStatus, RequestUrgency, TimeWindow, VehicleType
-from app.models.repair_request import RepairRequest
-from app.models.technician import Technician
+from app.models.sample_request import SampleRequest
+from app.models.courier import Courier
 
 
 @pytest.fixture
@@ -23,9 +23,9 @@ def current_time() -> datetime:
 
 
 @pytest.fixture
-def motorcycle_courier() -> Technician:
+def motorcycle_courier() -> Courier:
     """Return a motorcycle courier fixture."""
-    return Technician(
+    return Courier(
         id="courier-1",
         name="Moto One",
         vehicle_type=VehicleType.motorcycle,
@@ -39,9 +39,9 @@ def motorcycle_courier() -> Technician:
 
 
 @pytest.fixture
-def van_courier() -> Technician:
+def van_courier() -> Courier:
     """Return a van courier fixture."""
-    return Technician(
+    return Courier(
         id="courier-2",
         name="Van One",
         vehicle_type=VehicleType.van,
@@ -55,15 +55,15 @@ def van_courier() -> Technician:
 
 
 @pytest.fixture
-def courier_fleet(motorcycle_courier: Technician, van_courier: Technician) -> list[Technician]:
+def courier_fleet(motorcycle_courier: Courier, van_courier: Courier) -> list[Courier]:
     """Return a small mixed courier fleet."""
     return [motorcycle_courier, van_courier]
 
 
 @pytest.fixture
-def critical_request() -> RepairRequest:
+def critical_request() -> SampleRequest:
     """Return a critical request fixture."""
-    return RepairRequest(
+    return SampleRequest(
         id="req-critical",
         hospital_name="City Hospital",
         location=Coordinate(lat=19.0805, lng=72.8785),
@@ -78,9 +78,9 @@ def critical_request() -> RepairRequest:
 
 
 @pytest.fixture
-def normal_request() -> RepairRequest:
+def normal_request() -> SampleRequest:
     """Return a normal request fixture."""
-    return RepairRequest(
+    return SampleRequest(
         id="req-normal",
         hospital_name="Metro Hospital",
         location=Coordinate(lat=19.0890, lng=72.8900),
@@ -95,9 +95,9 @@ def normal_request() -> RepairRequest:
 
 
 @pytest.fixture
-def organ_request() -> RepairRequest:
+def organ_request() -> SampleRequest:
     """Return an organ request fixture."""
-    return RepairRequest(
+    return SampleRequest(
         id="req-organ",
         hospital_name="Central Hospital",
         location=Coordinate(lat=19.0725, lng=72.8650),
@@ -112,16 +112,16 @@ def organ_request() -> RepairRequest:
 
 
 @pytest.fixture
-def sample_requests(critical_request: RepairRequest, normal_request: RepairRequest, organ_request: RepairRequest) -> list[RepairRequest]:
+def sample_requests(critical_request: SampleRequest, normal_request: SampleRequest, organ_request: SampleRequest) -> list[SampleRequest]:
     """Return a small request set for algorithm tests."""
     return [critical_request, normal_request, organ_request]
 
 
 @pytest.fixture
-def simple_3x3_fleet() -> list[Technician]:
+def simple_3x3_fleet() -> list[Courier]:
     """Return a 3x3 courier fleet for optimality tests."""
     return [
-        Technician(
+        Courier(
             id="courier-a",
             name="A",
             vehicle_type=VehicleType.van,
@@ -132,7 +132,7 @@ def simple_3x3_fleet() -> list[Technician]:
             shift_start=time(8, 0),
             shift_end=time(20, 0),
         ),
-        Technician(
+        Courier(
             id="courier-b",
             name="B",
             vehicle_type=VehicleType.van,
@@ -143,7 +143,7 @@ def simple_3x3_fleet() -> list[Technician]:
             shift_start=time(8, 0),
             shift_end=time(20, 0),
         ),
-        Technician(
+        Courier(
             id="courier-c",
             name="C",
             vehicle_type=VehicleType.van,
@@ -158,10 +158,10 @@ def simple_3x3_fleet() -> list[Technician]:
 
 
 @pytest.fixture
-def simple_3x3_requests() -> list[RepairRequest]:
+def simple_3x3_requests() -> list[SampleRequest]:
     """Return a 3x3 request set for optimality tests."""
     return [
-        RepairRequest(
+        SampleRequest(
             id="req-a",
             hospital_name="A",
             location=Coordinate(lat=19.0002, lng=72.8002),
@@ -169,11 +169,11 @@ def simple_3x3_requests() -> list[RepairRequest]:
             urgency=RequestUrgency.normal,
             priority=1,
             expiry_minutes=60,
-            created_at=datetime(2026, 6, 28, 8, 0, tzinfo=timezone.utc),
+            created_at=datetime(2026, 6, 28, 8, 30, tzinfo=timezone.utc),
             status=RequestStatus.open,
             time_window=TimeWindow(start=time(8, 30), end=time(11, 0)),
         ),
-        RepairRequest(
+        SampleRequest(
             id="req-b",
             hospital_name="B",
             location=Coordinate(lat=19.0102, lng=72.8102),
@@ -181,11 +181,11 @@ def simple_3x3_requests() -> list[RepairRequest]:
             urgency=RequestUrgency.normal,
             priority=1,
             expiry_minutes=60,
-            created_at=datetime(2026, 6, 28, 8, 0, tzinfo=timezone.utc),
+            created_at=datetime(2026, 6, 28, 8, 30, tzinfo=timezone.utc),
             status=RequestStatus.open,
             time_window=TimeWindow(start=time(8, 30), end=time(11, 0)),
         ),
-        RepairRequest(
+        SampleRequest(
             id="req-c",
             hospital_name="C",
             location=Coordinate(lat=19.0202, lng=72.8202),
@@ -193,7 +193,7 @@ def simple_3x3_requests() -> list[RepairRequest]:
             urgency=RequestUrgency.normal,
             priority=1,
             expiry_minutes=60,
-            created_at=datetime(2026, 6, 28, 8, 0, tzinfo=timezone.utc),
+            created_at=datetime(2026, 6, 28, 8, 30, tzinfo=timezone.utc),
             status=RequestStatus.open,
             time_window=TimeWindow(start=time(8, 30), end=time(11, 0)),
         ),

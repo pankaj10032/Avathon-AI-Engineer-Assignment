@@ -31,4 +31,4 @@ def flag_expiry_risk(request: Any, eta_minutes: float, current_time: datetime) -
     created_at = _current_time_to_utc(request.created_at)
     eta_arrival = current_time + timedelta(minutes=float(eta_minutes))
     elapsed_at_eta = max(0.0, (eta_arrival - created_at).total_seconds() / 60.0)
-    return elapsed_at_eta > request.expiry_minutes
+    return elapsed_at_eta > 0.8 * request.expiry_minutes

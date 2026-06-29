@@ -23,3 +23,9 @@ class Assignment(BaseModel):
     score_breakdown: dict[str, Any] = Field(default_factory=dict)
     total_score: float = Field(default=0.0)
     explanation: str
+
+    @property
+    def technician_id(self) -> str:
+        """Alias for courier_id to support legacy test paths."""
+        return self.courier_id
+

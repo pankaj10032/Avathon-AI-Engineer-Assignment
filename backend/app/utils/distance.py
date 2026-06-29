@@ -32,8 +32,12 @@ def haversine_km(loc1: Any, loc2: Any) -> float:
 
 
 def traffic_multiplier(current_time: datetime) -> float:
-    """Return the traffic multiplier for a given time of day."""
-    hour = current_time.hour
+    """Return the traffic multiplier for a given time of day in Mumbai local time (UTC+5:30)."""
+    from datetime import timezone, timedelta
+    if current_time.tzinfo is None:
+        current_time = current_time.replace(tzinfo=timezone.utc)
+    mumbai_time = current_time.astimezone(timezone(timedelta(hours=5, minutes=30)))
+    hour = mumbai_time.hour
     if hour in range(8, 10) or hour in range(17, 20):
         return TRAFFIC_MULTIPLIERS["rush_hour"]
     elif hour in range(10, 17):

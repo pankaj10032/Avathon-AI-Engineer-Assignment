@@ -16,7 +16,14 @@ function haversineKm(loc1, loc2) {
 }
 
 function trafficMultiplier(currentTime) {
-  const hour = currentTime.getHours()
+  // Convert current time to Mumbai local time (UTC+5:30)
+  const utcHour = currentTime.getUTCHours()
+  const utcMinutes = currentTime.getUTCMinutes()
+  let hour = (utcHour + 5) % 24
+  let minutes = utcMinutes + 30
+  if (minutes >= 60) {
+    hour = (hour + 1) % 24
+  }
   if ((hour >= 8 && hour < 10) || (hour >= 17 && hour < 20)) return 2.2
   if (hour >= 10 && hour < 17) return 1.4
   return 1.0

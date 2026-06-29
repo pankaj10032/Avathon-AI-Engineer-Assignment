@@ -12,18 +12,18 @@ from app.algorithms.hungarian import allocate_hungarian
 from app.algorithms.simulated_annealing import allocate_simulated_annealing
 from app.models.assignment import Assignment
 from app.models.common import AllocationAlgorithm, RequestUrgency
-from app.models.repair_request import RepairRequest
-from app.models.technician import Technician
+from app.models.courier import Courier
+from app.models.sample_request import SampleRequest
 
 LOGGER = logging.getLogger(__name__)
 
 
-def _clone_couriers(couriers: List[Technician]) -> List[Technician]:
+def _clone_couriers(couriers: List[Courier]) -> List[Courier]:
     """Clone couriers so downstream algorithms do not mutate shared state."""
     return [deepcopy(courier) for courier in couriers]
 
 
-def _update_availability(couriers: List[Technician], assignments: List[Assignment]) -> List[Technician]:
+def _update_availability(couriers: List[Courier], assignments: List[Assignment]) -> List[Courier]:
     """Increase courier load after applying assignments."""
     courier_map = {courier.id: courier for courier in _clone_couriers(couriers)}
     for assignment in assignments:
@@ -69,11 +69,11 @@ def _combine_metrics(
 
 
 def hybrid_allocate(
-    requests: List[RepairRequest],
-    couriers: List[Technician],
+    requests: List[SampleRequest],
+    couriers: List[Courier],
     current_time: datetime,
     config: Dict[str, float] | None = None,
-) -> Tuple[List[Assignment], List[RepairRequest], Dict[str, Any]]:
+) -> Tuple[List[Assignment], List[SampleRequest], Dict[str, Any]]:
     """Allocate critical requests greedily and batch requests optimally."""
     critical_requests = [r for r in requests if r.urgency == RequestUrgency.critical]
     batch_requests = [r for r in requests if r.urgency != RequestUrgency.critical]
@@ -82,19 +82,20 @@ def hybrid_allocate(
     critical_assignments, critical_unassigned, critical_metrics = allocate_greedy(couriers, critical_requests, current_time, config)
     remaining_couriers = _update_availability(couriers, critical_assignments)
 
+    algorithms_used = ["greedy"]
     if batch_requests:
-        batch_assignments, batch_unassigned, batch_metrics = allocate_hungarian(remaining_couriers, batch_requests, current_time, config)
+        if len(batch_requests) > 20:
+            batch_assignments, batch_unassigned, batch_metrics = allocate_simulated_annealing(remaining_couriers, batch_requests, current_time, config)
+            algorithms_used.append("sa")
+        else:
+            batch_assignments, batch_unassigned, batch_metrics = allocate_hungarian(remaining_couriers, batch_requests, current_time, config)
+            algorithms_used.append("hungarian")
     else:
         batch_assignments, batch_unassigned, batch_metrics = [], [], {
             "total_assigned": 0,
             "total_unassigned": 0,
             "runtime_ms": 0.0,
         }
-
-    algorithms_used = ["greedy", "hungarian"]
-    if len(batch_requests) > 20:
-        batch_assignments, batch_unassigned, batch_metrics = allocate_simulated_annealing(remaining_couriers, batch_requests, current_time, config)
-        algorithms_used.append("sa")
 
     all_assignments = critical_assignments + batch_assignments
     all_unassigned = critical_unassigned + batch_unassigned

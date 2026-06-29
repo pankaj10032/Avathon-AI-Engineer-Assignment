@@ -2,6 +2,6 @@
 
 from .assignment import Assignment
 from .common import AllocationAlgorithm, AvailabilitySlot, Coordinate, RequestStatus, RequestUrgency, TimeWindow, VehicleType
-from .repair_request import RepairRequest, SampleRequest
-from .technician import Courier, Technician
+from .sample_request import SampleRequest
+from .courier import Courier
 

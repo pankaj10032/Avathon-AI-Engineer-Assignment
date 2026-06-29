@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Literal
 
@@ -13,8 +14,8 @@ from pydantic import BaseModel, Field
 
 from app.algorithms import allocate_greedy, allocate_hungarian, allocate_simulated_annealing, hybrid_allocate
 from app.models.assignment import Assignment
-from app.models.repair_request import RepairRequest
-from app.models.technician import Technician
+from app.models.sample_request import SampleRequest
+from app.models.courier import Courier
 from app.reoptimizer import handle_urgent_arrival
 from app.steps import greedy_assignment_steps
 
@@ -42,7 +43,7 @@ class AllocateRequest(BaseModel):
 class UrgentRequestPayload(BaseModel):
     """Request body for urgent re-optimization events."""
 
-    new_request: RepairRequest
+    new_request: SampleRequest
     current_assignments: List[Assignment] = Field(default_factory=list)
 
 
@@ -59,14 +60,14 @@ def _write_json(path: Path, data: Any) -> None:
         f.write("\n")
 
 
-def _load_technicians() -> List[Technician]:
+def _load_technicians() -> List[Courier]:
     """Load the active courier dataset."""
-    return [Technician.model_validate(item) for item in _load_json(TECHNICIANS_FILE)]
+    return [Courier.model_validate(item) for item in _load_json(TECHNICIANS_FILE)]
 
 
-def _load_requests() -> List[RepairRequest]:
+def _load_requests() -> List[SampleRequest]:
     """Load the active request dataset."""
-    return [RepairRequest.model_validate(item) for item in _load_json(REQUESTS_FILE)]
+    return [SampleRequest.model_validate(item) for item in _load_json(REQUESTS_FILE)]
 
 
 def _load_assignments() -> List[Assignment]:
@@ -86,14 +87,39 @@ def _default_data_payload() -> Dict[str, Any]:
 
 
 def _reset_from_seed() -> None:
-    """Restore active data from seed files."""
+    """Restore active data from seed files, shifting request timestamps to now."""
+    from datetime import datetime, timezone, timedelta
     _write_json(TECHNICIANS_FILE, _load_json(SEED_TECHNICIANS_FILE))
-    _write_json(REQUESTS_FILE, _load_json(SEED_REQUESTS_FILE))
+
+    # Shift request created_at timestamps so they are fresh relative to now
+    seed_requests = _load_json(SEED_REQUESTS_FILE)
+    if seed_requests:
+        # Find the earliest created_at in the seed data
+        seed_times = [datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")) for r in seed_requests]
+        earliest = min(seed_times)
+        now = datetime.now(timezone.utc)
+        # Shift so the earliest request was created 2 minutes ago
+        base_offset = now - earliest - timedelta(minutes=2)
+        for r in seed_requests:
+            original = datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
+            shifted = original + base_offset
+            r["created_at"] = shifted.strftime("%Y-%m-%dT%H:%M:%SZ")
+    _write_json(REQUESTS_FILE, seed_requests)
+
     if SEED_ASSIGNMENTS_FILE.exists():
         _write_json(ASSIGNMENTS_FILE, _load_json(SEED_ASSIGNMENTS_FILE))
 
 
-app = FastAPI(title="Resource Allocation Engine", version="1.0.0")
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Refresh seed data with current timestamps on server start."""
+    if SEED_TECHNICIANS_FILE.exists() and SEED_REQUESTS_FILE.exists():
+        _reset_from_seed()
+        LOGGER.info("seed_data_refreshed_on_startup")
+    yield
+
+
+app = FastAPI(title="Resource Allocation Engine", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

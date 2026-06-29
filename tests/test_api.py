@@ -7,18 +7,18 @@ from fastapi.testclient import TestClient
 
 from app.models.assignment import Assignment
 from app.models.common import Coordinate, RequestStatus, RequestUrgency, TimeWindow, VehicleType
-from app.models.repair_request import RepairRequest
-from app.models.technician import Technician
+from app.models.sample_request import SampleRequest
+from app.models.courier import Courier
 from main import app
 
 client = TestClient(app)
 
 
 @pytest.fixture
-def api_technicians() -> list[Technician]:
+def api_technicians() -> list[Courier]:
     """Return technicians for API tests."""
     return [
-        Technician(
+        Courier(
             id="api-1",
             name="API One",
             vehicle_type=VehicleType.van,
@@ -29,7 +29,7 @@ def api_technicians() -> list[Technician]:
             shift_start=time(8, 0),
             shift_end=time(20, 0),
         ),
-        Technician(
+        Courier(
             id="api-2",
             name="API Two",
             vehicle_type=VehicleType.van,
@@ -44,11 +44,11 @@ def api_technicians() -> list[Technician]:
 
 
 @pytest.fixture
-def api_requests() -> list[RepairRequest]:
+def api_requests() -> list[SampleRequest]:
     """Return requests for API tests."""
     now = datetime(2026, 6, 28, 9, 0, tzinfo=timezone.utc)
     return [
-        RepairRequest(
+        SampleRequest(
             id="api-r1",
             hospital_name="Hosp 1",
             location=Coordinate(lat=19.0763, lng=72.8780),
@@ -59,7 +59,7 @@ def api_requests() -> list[RepairRequest]:
             status=RequestStatus.open,
             time_window=TimeWindow(start=time(8, 30), end=time(10, 0)),
         ),
-        RepairRequest(
+        SampleRequest(
             id="api-r2",
             hospital_name="Hosp 2",
             location=Coordinate(lat=19.0820, lng=72.8830),
@@ -144,8 +144,8 @@ def test_urgent_request_triggers_reoptimization(monkeypatch, patch_data, api_req
     response = client.post(
         "/api/urgent-request",
         json={
-            "new_request": api_requests[0].model_dump(),
-            "current_assignments": current_assignments,
+            "new_request": api_requests[0].model_dump(mode="json"),
+            "current_assignments": [a.model_dump(mode="json") for a in current_assignments],
         },
     )
 
@@ -156,5 +156,6 @@ def test_urgent_request_triggers_reoptimization(monkeypatch, patch_data, api_req
 
 
 def test_invalid_request_rejected():
-    response = client.post("/api/allocate", json={})
+    response = client.post("/api/allocate", json={"algorithm": "invalid_algo"})
     assert response.status_code == 422
+

@@ -6,14 +6,14 @@ import pytest
 
 from app.algorithms import allocate_greedy
 from app.models.common import Coordinate, RequestStatus, RequestUrgency, TimeWindow, VehicleType
-from app.models.repair_request import RepairRequest
-from app.models.technician import Technician
+from app.models.sample_request import SampleRequest
+from app.models.courier import Courier
 from app.utils.urgency import flag_expiry_risk
 
 
 def test_expired_request_not_assigned(courier_fleet):
     current_time = datetime(2026, 6, 28, 10, 0, tzinfo=timezone.utc)
-    expired_request = RepairRequest(
+    expired_request = SampleRequest(
         id="expired-1",
         hospital_name="Old Hospital",
         location=Coordinate(lat=19.0760, lng=72.8777),
@@ -33,7 +33,7 @@ def test_expired_request_not_assigned(courier_fleet):
 
 def test_skill_mismatch_blocked(motorcycle_courier):
     current_time = datetime(2026, 6, 28, 10, 0, tzinfo=timezone.utc)
-    organ_request = RepairRequest(
+    organ_request = SampleRequest(
         id="organ-1",
         hospital_name="Organ Center",
         location=Coordinate(lat=19.0800, lng=72.8780),
@@ -54,7 +54,7 @@ def test_skill_mismatch_blocked(motorcycle_courier):
 
 def test_unavailable_courier_blocked():
     current_time = datetime(2026, 6, 28, 10, 0, tzinfo=timezone.utc)
-    courier = Technician(
+    courier = Courier(
         id="late-courier",
         name="Late Rider",
         vehicle_type=VehicleType.van,
@@ -64,7 +64,7 @@ def test_unavailable_courier_blocked():
         shift_start=current_time.replace(hour=12).time(),
         shift_end=current_time.replace(hour=18).time(),
     )
-    request = RepairRequest(
+    request = SampleRequest(
         id="req-1",
         hospital_name="Shift Test",
         location=Coordinate(lat=19.0780, lng=72.8790),
@@ -88,7 +88,7 @@ def test_unavailable_courier_blocked():
 )
 def test_expiry_risk_flagged(eta_minutes, expected):
     current_time = datetime(2026, 6, 28, 10, 0, tzinfo=timezone.utc)
-    request = RepairRequest(
+    request = SampleRequest(
         id="risk-1",
         hospital_name="Risk Hospital",
         location=Coordinate(lat=19.0780, lng=72.8790),

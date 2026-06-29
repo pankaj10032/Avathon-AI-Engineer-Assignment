@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Sequence, Tuple
 from app.models.assignment import Assignment
 from app.models.common import AllocationAlgorithm, AvailabilitySlot, TimeWindow
 from app.config import AVAILABILITY_WEIGHT, DISTANCE_WEIGHT, WORKLOAD_WEIGHT
-from app.models.repair_request import RepairRequest
-from app.models.technician import Technician
+from app.models.sample_request import SampleRequest
+from app.models.courier import Courier
 from app.utils.distance import haversine_km, travel_time_minutes
 from app.utils.scorer import AssignmentScore, explain_assignment, score_assignment
 
@@ -20,7 +20,7 @@ LOGGER = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class _CandidateScore:
-    technician: Technician
+    technician: Courier
     score: float
     cost: float
     distance_km: float
@@ -69,8 +69,8 @@ def _normalize_distance(distance_km: float, max_distance_km: float) -> float:
 
 
 def _compute_candidate_score(
-    technician: Technician,
-    request: RepairRequest,
+    technician: Courier,
+    request: SampleRequest,
     max_distance_km: float,
     current_time: datetime,
     config: dict[str, float] | None = None,
@@ -120,11 +120,11 @@ def _assignment_explanation(candidate: _CandidateScore) -> str:
 
 
 def allocate_greedy(
-    technicians: List[Technician],
-    requests: List[RepairRequest],
+    technicians: List[Courier],
+    requests: List[SampleRequest],
     current_time: datetime,
     config: dict[str, float] | None = None,
-) -> Tuple[List[Assignment], List[RepairRequest], Dict[str, Any]]:
+) -> Tuple[List[Assignment], List[SampleRequest], Dict[str, Any]]:
     """
     Greedy allocation:
     - Sort requests by priority descending, then earliest time window start.
@@ -138,7 +138,7 @@ def allocate_greedy(
     )
 
     assignments: List[Assignment] = []
-    unassigned: List[RepairRequest] = []
+    unassigned: List[SampleRequest] = []
     working_loads = {tech.id: tech.current_load for tech in technicians}
 
     max_distance_km = 0.0

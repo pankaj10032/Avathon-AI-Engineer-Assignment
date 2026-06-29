@@ -6,19 +6,19 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from app.algorithms.greedy import _compute_candidate_score
-from app.models.repair_request import RepairRequest
-from app.models.technician import Technician
+from app.models.sample_request import SampleRequest
+from app.models.courier import Courier
 
 
 def greedy_assignment_steps(
-    couriers: List[Technician],
-    requests: List[RepairRequest],
+    couriers: List[Courier],
+    requests: List[SampleRequest],
     current_time: datetime,
 ) -> List[Dict[str, Any]]:
     """Return ordered greedy allocation steps for frontend animation."""
     sorted_requests = sorted(
         requests,
-        key=lambda r: (-r.priority, r.expiry_minutes, r.created_at, r.id),
+        key=lambda r: (-r.priority, r.time_window.start.hour, r.time_window.start.minute, r.id),
     )
     working_loads = {courier.id: courier.active_samples_count for courier in couriers}
     steps: List[Dict[str, Any]] = []

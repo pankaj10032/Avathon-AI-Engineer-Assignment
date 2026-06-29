@@ -72,23 +72,29 @@ def score_assignment(courier: Any, request: Any, current_time: datetime, config:
             breakdown={"distance_km": 0.0, "distance": 0.0, "speed": 0.0, "capacity": 0.0, "eta": 0.0, "expiry_risk": 0.0},
         )
 
-    feasible = capacity_ok and organ_ok and shift_ok and eta_minutes < request.expiry_minutes
-    distance_km = haversine_km(courier.location, request.location)
-    buffer_minutes = request.expiry_minutes - eta_minutes
-    buffer_fraction = buffer_minutes / request.expiry_minutes
+    from datetime import timezone
+    current_time_utc = current_time.astimezone(timezone.utc) if current_time.tzinfo else current_time.replace(tzinfo=timezone.utc)
+    created_at_utc = request.created_at.astimezone(timezone.utc) if request.created_at.tzinfo else request.created_at.replace(tzinfo=timezone.utc)
+    elapsed_minutes = (current_time_utc - created_at_utc).total_seconds() / 60.0
+    remaining_minutes = request.expiry_minutes - elapsed_minutes
 
-    if buffer_fraction >= 0.5:
+    feasible = capacity_ok and organ_ok and shift_ok and remaining_minutes > 0 and eta_minutes < remaining_minutes
+    distance_km = haversine_km(courier.location, request.location)
+    buffer_minutes = remaining_minutes - eta_minutes
+    buffer_fraction = buffer_minutes / request.expiry_minutes if request.expiry_minutes > 0 else 0.0
+
+    if not feasible or remaining_minutes <= 0 or buffer_fraction <= 0:
+        expiry_risk_level = "impossible"
+        expiry_score = 0.0
+    elif buffer_fraction >= 0.5:
         expiry_risk_level = "safe"
         expiry_score = 1.0
     elif buffer_fraction >= 0.25:
         expiry_risk_level = "warning"
         expiry_score = 0.6
-    elif buffer_fraction > 0:
+    else:
         expiry_risk_level = "critical"
         expiry_score = 0.2
-    else:
-        expiry_risk_level = "impossible"
-        expiry_score = 0.0
 
     distance_score = max(0.0, 1.0 - (distance_km / MAX_REASONABLE_DISTANCE_KM))
     speed_score = min(1.0, courier.speed_kmh / MAX_COURIER_SPEED_KMH)

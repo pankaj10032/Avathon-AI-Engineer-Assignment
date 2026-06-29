@@ -12,19 +12,12 @@ from typing import Any, Dict, List, Tuple
 from app.config import SA_COOLING_RATE, SA_INITIAL_TEMP, SA_ITERATIONS
 from app.models.assignment import Assignment
 from app.models.common import AllocationAlgorithm, RequestUrgency
-from app.models.repair_request import RepairRequest
-from app.models.technician import Technician
+from app.models.sample_request import SampleRequest
+from app.models.courier import Courier
 from app.utils.distance import haversine_km, travel_time_minutes
 from app.utils.scorer import explain_assignment, score_assignment
-from app.utils.urgency import compute_urgency_score
 
 LOGGER = logging.getLogger(__name__)
-
-
-def _within_shift(courier: Technician, current_time: datetime) -> bool:
-    """Return True when the courier is on shift."""
-    current_t = current_time.time()
-    return courier.shift_start <= current_t <= courier.shift_end
 
 
 def _courier_capacity(courier: Technician) -> int:
@@ -33,8 +26,8 @@ def _courier_capacity(courier: Technician) -> int:
 
 
 def _build_feasible_pairs(
-    couriers: List[Technician],
-    requests: List[RepairRequest],
+    couriers: List[Courier],
+    requests: List[SampleRequest],
     current_time: datetime,
     config: dict[str, float] | None = None,
 ) -> dict[str, list[tuple[str, float, float, float]]]:
@@ -43,8 +36,6 @@ def _build_feasible_pairs(
     for request in requests:
         options: list[tuple[str, float, float, float]] = []
         for courier in couriers:
-            if not _within_shift(courier, current_time):
-                continue
             if courier.active_samples_count >= _courier_capacity(courier):
                 continue
 
@@ -61,7 +52,7 @@ def _build_feasible_pairs(
 
 
 def _choose_best_initial_assignment(
-    request: RepairRequest,
+    request: SampleRequest,
     options: list[tuple[str, float, float, float]],
 ) -> str | None:
     """Pick the best courier for a request from feasible options."""
@@ -71,8 +62,8 @@ def _choose_best_initial_assignment(
 
 
 def _build_initial_state(
-    couriers: List[Technician],
-    requests: List[RepairRequest],
+    couriers: List[Courier],
+    requests: List[SampleRequest],
     pair_map: dict[str, list[tuple[str, float, float, float]]],
     current_time: datetime,
 ) -> dict[str, str | None]:
@@ -91,8 +82,6 @@ def _build_initial_state(
             opt for opt in pair_map.get(request.id, [])
             if courier_loads[opt[0]] < capacities[opt[0]]
         ]
-        # Prefer the earliest-expiring requests first when seeding from greedy.
-        _ = compute_urgency_score(request, current_time)
         best_choice = _choose_best_initial_assignment(request, options)
         if best_choice is not None:
             state[request.id] = best_choice
@@ -103,8 +92,8 @@ def _build_initial_state(
 
 def _state_cost(
     state: dict[str, str | None],
-    request_map: dict[str, RepairRequest],
-    courier_map: dict[str, Technician],
+    request_map: dict[str, SampleRequest],
+    courier_map: dict[str, Courier],
     pair_map: dict[str, list[tuple[str, float, float, float]]],
     current_time: datetime,
     config: dict[str, float] | None = None,
@@ -122,7 +111,7 @@ def _state_cost(
             continue
         distance_km, eta_minutes, base_cost = options[courier_id]
         score = score_assignment(courier_map[courier_id], request, current_time, config)
-        total_cost += base_cost + (1.0 - score.total_score)
+        total_cost += base_cost
         if score.expiry_risk_level in {"warning", "critical"}:
             total_cost += 20.0
     return round(total_cost, 4)
@@ -130,15 +119,15 @@ def _state_cost(
 
 def _state_to_assignments(
     state: dict[str, str | None],
-    request_map: dict[str, RepairRequest],
-    courier_map: dict[str, Technician],
+    request_map: dict[str, SampleRequest],
+    courier_map: dict[str, Courier],
     pair_map: dict[str, list[tuple[str, float, float, float]]],
     current_time: datetime,
     config: dict[str, float] | None = None,
-) -> tuple[list[Assignment], list[RepairRequest], float, float]:
+) -> tuple[list[Assignment], list[SampleRequest], float, float]:
     """Convert a state into assignments, unassigned requests, and cost."""
     assignments: list[Assignment] = []
-    unassigned: list[RepairRequest] = []
+    unassigned: list[SampleRequest] = []
     total_cost = 0.0
 
     options_lookup = {
@@ -184,11 +173,11 @@ def _state_to_assignments(
 
 
 def allocate_simulated_annealing(
-    couriers: List[Technician],
-    requests: List[RepairRequest],
+    couriers: List[Courier],
+    requests: List[SampleRequest],
     current_time: datetime,
     config: dict[str, float] | None = None,
-) -> Tuple[List[Assignment], List[RepairRequest], Dict[str, Any]]:
+) -> Tuple[List[Assignment], List[SampleRequest], Dict[str, Any]]:
     """Simulated annealing seeded from greedy and optimized by cost."""
     start_time = time_module.perf_counter()
     LOGGER.info("sa_allocation_started", extra={"requests": len(requests), "couriers": len(couriers)})
@@ -289,7 +278,7 @@ def allocate_simulated_annealing(
         "avg_distance_km": avg_distance_km,
         "max_distance_km": max_distance_km,
         "avg_technician_utilization": round(sum(utilizations) / len(utilizations), 4) if utilizations else 0.0,
-        "total_cost_score": round(best_cost, 4),
+        "total_cost_score": round(total_cost, 4),
         "pct_expiry_risk": pct_expiry_risk,
         "cost_history": cost_history,
         "improvement_pct": improvement_pct,

@@ -13,8 +13,8 @@ from scipy.optimize import linear_sum_assignment
 
 from app.models.assignment import Assignment
 from app.models.common import AllocationAlgorithm
-from app.models.repair_request import RepairRequest
-from app.models.technician import Technician
+from app.models.sample_request import SampleRequest
+from app.models.courier import Courier
 from app.algorithms.greedy import _availability_overlap_score
 from app.utils.distance import haversine_km, travel_time_minutes
 from app.utils.scorer import score_assignment, explain_assignment
@@ -28,8 +28,8 @@ class _MatrixCell:
     cost: float
     distance_km: float
     eta_minutes: float
-    technician: Technician
-    request: RepairRequest
+    technician: Courier
+    request: SampleRequest
     is_feasible: bool
 
 
@@ -48,15 +48,13 @@ def _workload_penalty(current_load: int, max_load: int) -> float:
 
 
 def _build_matrix(
-    technicians: List[Technician],
-    requests: List[RepairRequest],
+    technicians: List[Courier],
+    requests: List[SampleRequest],
     current_time: datetime,
     config: dict[str, float] | None = None,
 ) -> Tuple[np.ndarray, List[List[_MatrixCell]]]:
-    """Build the cost matrix and associated metadata."""
+    """Build the cost matrix and associated metadata, duplicating couriers by remaining capacity."""
     max_distance_km = 0.0
-    max_load = max((tech.current_load for tech in technicians), default=0)
-
     for tech in technicians:
         for request in requests:
             max_distance_km = max(
@@ -65,42 +63,57 @@ def _build_matrix(
             )
 
     cells: List[List[_MatrixCell]] = []
-    matrix = np.full((len(technicians), len(requests)), INFEASIBLE_COST, dtype=float)
+    matrix_rows = []
 
-    for i, tech in enumerate(technicians):
-        row: List[_MatrixCell] = []
-        for j, request in enumerate(requests):
-            if request.required_skill not in tech.skills:
-                cell = _MatrixCell(INFEASIBLE_COST, np.inf, np.inf, tech, request, False)
+    for tech in technicians:
+        max_cap = 3 if tech.vehicle_type.value == "motorcycle" else 8
+        remaining_capacity = max_cap - tech.active_samples_count
+        if remaining_capacity <= 0:
+            continue
+
+        for slot in range(remaining_capacity):
+            row: List[_MatrixCell] = []
+            row_costs = []
+            tech_state = tech.model_copy(update={"active_samples_count": tech.active_samples_count + slot})
+            for request in requests:
+                if request.required_skill not in tech_state.skills:
+                    cell = _MatrixCell(INFEASIBLE_COST, np.inf, np.inf, tech_state, request, False)
+                    row.append(cell)
+                    row_costs.append(INFEASIBLE_COST)
+                    continue
+
+                availability_score = _availability_overlap_score(tech_state.availability_schedule, request.time_window)
+                if availability_score <= 0:
+                    cell = _MatrixCell(INFEASIBLE_COST, np.inf, np.inf, tech_state, request, False)
+                    row.append(cell)
+                    row_costs.append(INFEASIBLE_COST)
+                    continue
+
+                distance_km = haversine_km(tech_state.location, request.location)
+                eta_minutes = travel_time_minutes(tech_state.location, request.location, tech_state.speed_kmh, current_time)
+                score = score_assignment(tech_state, request, current_time, config)
+                if not score.is_feasible:
+                    cell = _MatrixCell(INFEASIBLE_COST, np.inf, eta_minutes, tech_state, request, False)
+                    row.append(cell)
+                    row_costs.append(INFEASIBLE_COST)
+                    continue
+
+                cost = 1.0 - score.total_score
+                cell = _MatrixCell(round(cost, 4), round(distance_km, 2), round(eta_minutes, 2), tech_state, request, True)
                 row.append(cell)
-                continue
+                row_costs.append(cell.cost)
+            cells.append(row)
+            matrix_rows.append(row_costs)
 
-            availability_score = _availability_overlap_score(tech.availability_schedule, request.time_window)
-            if availability_score <= 0:
-                cell = _MatrixCell(INFEASIBLE_COST, np.inf, np.inf, tech, request, False)
-                row.append(cell)
-                continue
+    if not matrix_rows:
+        return np.empty((0, len(requests))), []
 
-            distance_km = haversine_km(tech.location, request.location)
-            eta_minutes = travel_time_minutes(tech.location, request.location, tech.speed_kmh, current_time)
-            score = score_assignment(tech, request, current_time, config)
-            if not score.is_feasible:
-                cell = _MatrixCell(INFEASIBLE_COST, np.inf, eta_minutes, tech, request, False)
-                row.append(cell)
-                continue
-
-            cost = 1.0 - score.total_score
-            cell = _MatrixCell(round(cost, 4), round(distance_km, 2), round(eta_minutes, 2), tech, request, True)
-            matrix[i, j] = cell.cost
-            row.append(cell)
-        cells.append(row)
-
-    return matrix, cells
+    return np.array(matrix_rows, dtype=float), cells
 
 
 def _assignment_explanation(
-    tech: Technician,
-    request: RepairRequest,
+    tech: Courier,
+    request: SampleRequest,
     distance_km: float,
     eta_minutes: float,
     cost: float,
@@ -116,11 +129,11 @@ def _assignment_explanation(
 
 
 def allocate_hungarian(
-    technicians: List[Technician],
-    requests: List[RepairRequest],
+    technicians: List[Courier],
+    requests: List[SampleRequest],
     current_time: datetime,
     config: dict[str, float] | None = None,
-) -> Tuple[List[Assignment], List[RepairRequest], Dict[str, Any]]:
+) -> Tuple[List[Assignment], List[SampleRequest], Dict[str, Any]]:
     """
     Batch optimal allocation using the Hungarian algorithm.
     Produces one best global assignment per technician/request pair when feasible.
@@ -142,6 +155,20 @@ def allocate_hungarian(
         return [], list(requests), metrics
 
     cost_matrix, cells = _build_matrix(technicians, requests, current_time, config)
+    if cost_matrix.size == 0:
+        metrics = {
+            "algorithm": AllocationAlgorithm.hungarian.value,
+            "total_assigned": 0,
+            "total_unassigned": len(requests),
+            "avg_distance_km": 0.0,
+            "max_distance_km": 0.0,
+            "avg_technician_utilization": 0.0,
+            "total_cost_score": 0.0,
+            "pct_expiry_risk": 0.0,
+            "runtime_ms": round((time_module.perf_counter() - start_time) * 1000.0, 2),
+        }
+        return [], list(requests), metrics
+
     row_ind, col_ind = linear_sum_assignment(cost_matrix)
 
     assignments: List[Assignment] = []

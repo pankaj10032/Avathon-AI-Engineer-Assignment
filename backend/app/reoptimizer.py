@@ -11,14 +11,15 @@ from app.algorithms.hungarian import allocate_hungarian
 from app.algorithms.simulated_annealing import allocate_simulated_annealing
 from app.models.assignment import Assignment
 from app.models.common import AllocationAlgorithm, RequestUrgency
-from app.models.repair_request import RepairRequest
-from app.models.technician import Technician
-from app.utils.distance import travel_time_minutes
+from app.models.courier import Courier
+from app.models.sample_request import SampleRequest
+from app.utils.distance import haversine_km, travel_time_minutes
+from app.utils.scorer import score_assignment, explain_assignment
 
 LOGGER = logging.getLogger(__name__)
 
 
-def find_lowest_priority_assignment(current_assignments: List[Assignment], request_lookup: Dict[str, RepairRequest]) -> Assignment | None:
+def find_lowest_priority_assignment(current_assignments: List[Assignment], request_lookup: Dict[str, SampleRequest]) -> Assignment | None:
     """Return the least critical current assignment."""
     scored: list[tuple[int, float, Assignment]] = []
     for assignment in current_assignments:
@@ -36,8 +37,8 @@ def find_lowest_priority_assignment(current_assignments: List[Assignment], reque
 def preempt_assignment(
     current_assignments: List[Assignment],
     preemptable: Assignment,
-    new_request: RepairRequest,
-    couriers: List[Technician],
+    new_request: SampleRequest,
+    couriers: List[Courier],
     current_time: datetime,
 ) -> Tuple[List[Assignment], Dict[str, Any]]:
     """Preempt an existing assignment and reassign the freed courier."""
@@ -47,17 +48,21 @@ def preempt_assignment(
         return current_assignments, {"reoptimized": False, "reason": "courier_not_found"}
 
     updated_assignments = [assignment for assignment in current_assignments if assignment.request_id != preemptable.request_id]
-    eta = travel_time_minutes(freed_courier.location, new_request.location, freed_courier.speed_kmh, current_time)
-    score = max(0.0, 1.0 - min(1.0, eta / max(1.0, new_request.expiry_minutes)))
+    score_res = score_assignment(freed_courier, new_request, current_time)
+    distance = haversine_km(freed_courier.location, new_request.location)
+
     new_assignment = Assignment(
         technician_id=freed_courier.id,
         request_id=new_request.id,
-        score=round(score, 4),
-        distance_km=0.0,
+        score=round(score_res.total_score, 4),
+        distance_km=round(distance, 2),
         algorithm_used=AllocationAlgorithm.greedy,
-        eta_minutes=round(eta, 2),
-        expiry_risk=eta > new_request.expiry_minutes,
-        explanation=f"Preempted for urgent request {new_request.id} on urgent arrival",
+        eta_minutes=round(score_res.eta_minutes, 2),
+        expiry_risk=score_res.expiry_risk_level in {"warning", "critical"},
+        expiry_risk_level=score_res.expiry_risk_level,
+        score_breakdown=score_res.breakdown,
+        total_score=score_res.total_score,
+        explanation=explain_assignment(score_res, freed_courier, new_request),
     )
     updated_assignments.append(new_assignment)
     return updated_assignments, {
@@ -72,11 +77,11 @@ def preempt_assignment(
 
 
 def handle_urgent_arrival(
-    new_request: RepairRequest,
+    new_request: SampleRequest,
     current_assignments: List[Assignment],
-    couriers: List[Technician],
+    couriers: List[Courier],
     current_time: datetime,
-    request_lookup: Dict[str, RepairRequest],
+    request_lookup: Dict[str, SampleRequest],
 ) -> Tuple[List[Assignment], Dict[str, Any]]:
     """Handle a new urgent request and preempt if beneficial."""
     LOGGER.info("urgent_request_received", extra={"request_id": new_request.id, "urgency": new_request.urgency.value})
